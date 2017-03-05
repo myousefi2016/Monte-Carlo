@@ -1,0 +1,241 @@
+%Punn Augsornworawat
+%Nov 3 2016
+
+%clear;
+%simulation setting
+Nph = 10000; %Numer of photons in sumulation 
+
+%Optical parameters
+n = 1.37; %refractive index of tissue 
+ua = 0.1; %miu absorbance in cm^-1
+us = 100; %miu scattering in cm^-1 5times greater and less - normal is 100
+g = 0.9; %ansitropic value
+
+%calculated optical parameter
+ut = ua + us; %constant
+%Rsp = ((n-1)*(n-1))/((n+1)*(n+1)); %incident initial specular reflectance = constant
+Rsp = 0.1431; %for part 2 b
+dwcoeff = ua/ut; %costant
+coscriticleangle = sqrt(1-1/(n*n)); %coscriticalangle
+
+%temporary storage vairables
+countNph = 0;
+
+
+%Scoring
+        
+        dxdy = 0.01;
+        dz = 0.01;
+        xrange = 50;
+        yrange = 50;
+        zrange = 10;
+        
+        gridsizex= xrange/dxdy;
+        gridsizey= yrange/dxdy;
+        gridsizez= zrange/dz;
+       % Ascorex = zeros(gridsizex,1);
+       % Ascorey = zeros(gridsizey,1);
+        Ascorez = zeros(gridsizez,1);
+        zaxis = zeros(gridsizez,1);
+        for k =1:gridsizez
+           zaxis(k,1) = zaxis(k,1)+ dz*k; 
+        end
+
+for i=1:Nph   %for loop for repeating number of photon runs - outer most loop 
+   countNph = countNph + 1;
+    %LAUNCH PHOTONS - INITIALIZING (BLOCK 1)
+        s= 0; %unitless step size
+        x=0; y=0; z=0; %photon position
+        ux=0.68591; uy=0; uz=0.72769; %directional cosines 
+        w=1-Rsp; %weight - Rspi
+        wrec = 0; %weight lost/recorded
+        collisioncount = 0; %count how many interactions
+        counthitboundary = 0; %count how manny time hit boundary
+        
+      while w>0 %loop for determining if photon is still alive. Dead is w=0. 
+        %SETTING STEP SIZE (BLOCK2) 
+            if s == 0; 
+                s=-log(rand())/ut; 
+            end 
+        %FIND DISTANCE TO BOUNDARY (BLOCK3)
+            %can just use z to see if negative - no need to do for 1 layer
+        %MOVE s/ut (BLOCK5) - move first and then do BLOCK 4
+            x = x + s*ux;
+            y = y + s*uy;
+            z = z + s*uz;
+        %HIT BOUNDARY? (BLOCK4)
+            if z<=0 %HIT - REFLECT AND BOUNCE BACK 
+                z = -z; %bounce - move s
+                uz= -uz;
+                %counthitboundary = counthitboundary +1; %count times hit boundary
+                if z <= coscriticleangle
+                    Ralpha = 1;
+                    w=w*Ralpha;
+                else
+                    if uz>1
+                        uz=1;
+                    end
+                    alphai = acos(abs(uz));
+                    const1= n*sin(alphai);
+                    alphat = asin(const1);
+                    term1= sin(alphai-alphat);
+                    term2= sin(alphai+alphat);
+                    term3= tan(alphai-alphat);
+                    term4= tan(alphai+alphat);
+                    Ralpha = 0.5*(term1*term1/term2/term2+term3*term3/term4/term4); %frensnel reflection
+                    
+                    wrec = wrec+(1-Ralpha)*w;
+                    w = w*Ralpha;
+                end
+            else %NOTHIT
+               %s=0 (BLOCK6)
+               s = 0; 
+               %ABSORB (BLOCK7)
+               dw = dwcoeff*w; %amount weight loss - score
+               wrec = wrec + dw; %update weight record
+               w = w-dw; %update weight of photon w
+                    %PHOTON DEAD OR NOT ROUELLETTE (BLOCK  9 10 11)
+                       if w<0.0001
+                           if rand()<=0.1 %still alive
+                               w=10*w;
+                           else
+                               w=0; %photon dead
+                           end
+                       end
+                                %RECORDING
+                                %{
+                                %xaxis
+                                posix = x/dxdy;
+                                posixgrid = gridsizex/2+posix;
+                                roundupx = ceil(posixgrid);
+                                rounddownx = floor(posixgrid);
+                                rx = rem(posixgrid,rounddownx);
+                                dwrounddownx = dw*rx; %new w at x down
+                                dwroundupx= dw*(1-rx); %new w at x up
+                                Ascorex(rounddownx) = Ascorex(rounddownx) + dwrounddownx;
+                                Ascorex(roundupx) = Ascorey(roundupx) + dwroundupx;
+                                tempxrounddown = dxdy*(rounddownx -gridsizex/2);
+                                tempxroundup = dxdy*(roundupx -gridsizex/2);
+                                %yaxis
+                                posiy=y/dxdy;
+                                posiygrid = gridsizey/2+posiy;
+                                roundupy = ceil(posiygrid);
+                                rounddowny = floor(posiygrid);
+                                ry = rem(posiygrid,rounddowny);
+                                
+                                ytopleft = dwrounddownx*(1-ry);
+                                ybottomleft = dwrounddownx*ry;
+                                ytopright = dwroundupx*(1-ry);
+                                ybottomright = dwroundupx*ry;
+                                %}
+                                
+                                %zaxis
+                                posiz = z/dz;
+                                roundupz = ceil(posiz);
+                                rounddownz = floor(posiz);
+                                rz = rem(posiz,rounddownz);
+                                dwrounddownz = dw*rz; %new w at x down
+                                dwroundupz= dw*(1-rz); %new w at x up
+                                if rounddownz>1000
+                                    rounddownz = rounddownz-1;
+                                end
+                               
+                                if rounddownz==0 || roundupz==0 
+                                
+                                else
+                                     if roundupz>=999 
+                                     roundupz=999;
+                                     rounddownz=998;
+                                     end
+                                Ascorez(rounddownz+1,1) = Ascorez(rounddownz+1,1) + dwrounddownz/ut;
+                                Ascorez(roundupz+1,1) = Ascorez(roundupz+1,1) + dwroundupz/ut;
+                                end
+                                
+                                
+                %SCATTERING (BLOCK8)
+                if g ==0 %deflection
+                    costheta = 2*rand()-1; %cos(theta)
+                else
+                    const2 = (1-g*g)/(1-g+2*g*rand());
+                    costheta = 0.5/g*(1+g*g-const2*const2); %cos(theta)
+                end
+                phi = 2*pi*rand(); %azimuthal angle
+                sintheta = sqrt(1-costheta*costheta); %sin(theta)
+                cosphi = cos(phi); %cos(phi)
+                sinphi = sqrt(1-cosphi*cosphi); %sin(phi)
+                const3 = sqrt(1-uz*uz);
+                    if abs(uz)>0.9999 %in case uz is close to z axis
+                        ux=sintheta*cosphi;
+                        uy=sintheta*sinphi;
+                        uz=sign(uz)*costheta;
+                    else %there is typo in the text uz, should be / instead of multiply
+                        ux = sintheta*(ux*uz*cosphi-uy*sinphi)/const3+ux*costheta;
+                        uy = sintheta*(uy*uz*cosphi+ux*sinphi)/const3+uy*costheta;
+                        uz = -sintheta*cosphi/const3+uz*costheta;
+                    end
+            end
+           %records     
+           collisioncount = collisioncount +1;
+           A(1) = 0; %x
+           B(1) = 0; %y
+           C(1) = 0; %z
+           warray(1) = 1-Rsp; %w
+           woutarray(1)= 0; %wrec
+           A(collisioncount+1) = x-2.5;
+           B(collisioncount+1) = y;
+           C(collisioncount+1) = z;
+           warray(collisioncount+1) = w;
+           woutarray(collisioncount+1)=wrec;
+           
+           %plot3(A,B,C)
+           %axis([-10,10,-10,10])
+           %title(collisioncount-1)
+           %colorbar;
+          % xlabel('x');
+          % ylabel('y');
+           %pause(0.0001);
+           %hold on
+           
+      end
+            %hold off
+        %check1 = ux^2 + uy^2 + uz^2;
+%MC part 2
+%{
+scatter(B,-C,0.4, 'green', 'filled')
+axis([-7,7,-10,5])
+grid on;
+xlabel('x');
+ylabel('z');
+legend('theta=20','theta=45','theta=70');
+hold on;
+%}
+        
+        
+end
+fluence = zeros(100,1);
+zaxis2 = zeros(100,1);
+for q=1:(100)
+    zaxis2(q,1) = zaxis2(q,1)+ dz*q; 
+end
+       
+for p=1:(100 -1) 
+   fluence(p,1) = Ascorez(p+1,1);
+end
+hold on;
+semilogy(zaxis2,fluence,'green')
+xlim([0 0.9]);
+xlabel('z[cm]');
+ylabel('Fluence[-]');
+legend('theta=20','theta=45','theta=70');
+grid on;
+%save();
+
+           
+          % plot3(A,B,-C, 'green')
+          % axis([-10,10,-10,10])
+           %grid on;
+           %colorbar;
+          % xlabel('x');
+         %  ylabel('y');
+        
+           
